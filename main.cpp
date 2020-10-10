@@ -60,7 +60,6 @@ struct Document {
 
 class SearchServer {
 public:
-
     /*
      * Установка стоп слов. То есть слов, которые будут удаляться из запроса.
      */
@@ -73,15 +72,9 @@ public:
     /*
      * Функция добавления нового документа.
      */
-    void AddDocument(
-            int document_id,
-            const string& document,
-            DocumentStatus status,
-            const vector<int>& ratings
-        )
-    {
+    void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
         const vector<string> words = SplitIntoWordsNoStop(document);
-        const double inv_word_count = 1.0 / words.size();
+        const double inv_word_count = 1.0 / static_cast<int>(words.size());
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
@@ -100,10 +93,11 @@ public:
         auto matched_documents = FindAllDocuments(query);
         sort(matched_documents.begin(), matched_documents.end(),
              [](const Document& lhs, const Document& rhs) {
-                 return (!IsDoubleEqual(lhs.relevance, rhs.relevance) && lhs.relevance > rhs.relevance) || (lhs.rating > rhs.rating && IsDoubleEqual(lhs.relevance, rhs.relevance));
+                 return (!IsDoubleEqual(lhs.relevance, rhs.relevance) && lhs.relevance > rhs.relevance)
+                 || (lhs.rating > rhs.rating && IsDoubleEqual(lhs.relevance, rhs.relevance));
              });
         PredicateFiltering(matched_documents, predicate);
-        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
+        if (static_cast<int>(matched_documents.size()) > MAX_RESULT_DOCUMENT_COUNT) {
             matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
         }
         return matched_documents;
@@ -113,9 +107,10 @@ public:
      * Перегрузка функции поиска с использованием статуса в качестве второго парметра
      * вместо функции предиката.
      */
-    vector<Document> FindTopDocuments(const string& raw_query, const DocumentStatus status = DocumentStatus::ACTUAL) const
-    {
-        return FindTopDocuments(raw_query, [status](const int doc_id, const DocumentStatus doc_status, const int rating) { return doc_status == status; });
+    vector<Document> FindTopDocuments(const string& raw_query, const DocumentStatus status = DocumentStatus::ACTUAL) const {
+        return FindTopDocuments(
+                raw_query,
+                [&status](const int doc_id, const DocumentStatus doc_status, const int rating) { return doc_status == status; });
     }
 
     /*
@@ -218,8 +213,7 @@ private:
      */
     QueryWord ParseQueryWord(string word) const {
         bool is_minus = false;
-        // Word shouldn't be empty
-        if (word[0] == '-') {
+        if (static_cast<int>(word.size()) > 0 && word[0] == '-') {
             is_minus = true;
             word = word.substr(1);
         }
