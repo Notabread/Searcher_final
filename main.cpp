@@ -88,7 +88,7 @@ public:
                  return (!IsDoubleEqual(lhs.relevance, rhs.relevance) && lhs.relevance > rhs.relevance)
                  || (lhs.rating > rhs.rating && IsDoubleEqual(lhs.relevance, rhs.relevance));
              });
-        if (static_cast<int>(matched_documents.size()) > MAX_RESULT_DOCUMENT_COUNT) {
+        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
             matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
         }
         return matched_documents;
@@ -222,7 +222,7 @@ private:
      * Вычисление IDF слова.
      */
     double ComputeWordInverseDocumentFreq(const string& word) const {
-        if (word_to_document_freqs_.count(word) && static_cast<int>(word_to_document_freqs_.at(word).size()) > 0) {
+        if (word_to_document_freqs_.count(word) && word_to_document_freqs_.at(word).size() > 0) {
             return log(GetDocumentCount() * 1.0 / static_cast<double>(word_to_document_freqs_.at(word).size()));
         }
         return 0.0;
