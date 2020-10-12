@@ -264,7 +264,7 @@ private:
 
         //Проходим по плюс словам и заполняем словарь document_to_relevance
         for (const string& word : query.plus_words) {
-            if (word_to_document_freqs_.count(word) == 0) {
+            if (word_to_document_freqs_.count(word) == 0 || query.minus_words.count(word) > 0) {
                 continue;
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
