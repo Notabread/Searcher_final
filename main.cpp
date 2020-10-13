@@ -62,7 +62,10 @@ public:
         }
     }
 
-    void UpsertDocument(int document_id, const string& document, const DocumentStatus status, const vector<int>& ratings) {
+    void AddDocument(int document_id, const string& document, const DocumentStatus status, const vector<int>& ratings) {
+        if (document_parameters_.count(document_id) > 0) {
+            return;
+        }
         const vector<string> words = SplitIntoWordsNoStop(document);
         const double inv_word_count = 1.0 / static_cast<int>(words.size());
         for (const string& word : words) {
