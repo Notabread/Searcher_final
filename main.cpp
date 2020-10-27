@@ -294,17 +294,13 @@ private:
 };
 
 // -------- Реализация тестирующего фреймворка ----------
-#define ASSERT_EQUAL(a, b) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, ""s)
-#define ASSERT_EQUAL_HINT(a, b, hint) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, (hint))
-#define ASSERT(expr) AssertImpl(!!(expr), #expr, __FILE__, __FUNCTION__, __LINE__, ""s)
-#define ASSERT_HINT(expr, hint) AssertImpl(!!(expr), #expr, __FILE__, __FUNCTION__, __LINE__, (hint))
-#define RUN_TEST(func) RunTestImpl(func, #func)
 
 template <typename TestFunc>
 void RunTestImpl(const TestFunc func, const string& funcName) {
     func();
     cerr << funcName << " OK" << endl;
 }
+#define RUN_TEST(func) RunTestImpl(func, #func)
 
 template <typename Key, typename Value>
 ostream& operator<<(ostream& os, const pair<Key, Value>& item) {
@@ -327,19 +323,19 @@ ostream& Print(ostream& os, const Container& container) {
 }
 
 template <typename Item>
-ostream& operator<<(ostream& os, const vector<Item> container) {
+ostream& operator<<(ostream& os, const vector<Item>& container) {
     os << "["s;
     return Print(os, container) << "]"s;
 }
 
 template <typename Item>
-ostream& operator<<(ostream& os, const set<Item> container) {
+ostream& operator<<(ostream& os, const set<Item>& container) {
     os << "{"s;
     return Print(os, container) << "}"s;
 }
 
 template <typename Key, typename Value>
-ostream& operator<<(ostream& os, const map<Key, Value> container) {
+ostream& operator<<(ostream& os, const map<Key, Value>& container) {
     os << "{"s;
     return Print(os, container) << "}"s;
 }
@@ -359,6 +355,8 @@ void AssertEqualImpl(const T& t, const U& u, const string& t_str, const string& 
         abort();
     }
 }
+#define ASSERT_EQUAL(a, b) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, ""s)
+#define ASSERT_EQUAL_HINT(a, b, hint) AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, (hint))
 
 void AssertImpl(bool value, const string& expr_str, const string& file, const string& func, unsigned line,
                 const string& hint) {
@@ -372,6 +370,8 @@ void AssertImpl(bool value, const string& expr_str, const string& file, const st
         abort();
     }
 }
+#define ASSERT(expr) AssertImpl(!!(expr), #expr, __FILE__, __FUNCTION__, __LINE__, ""s)
+#define ASSERT_HINT(expr, hint) AssertImpl(!!(expr), #expr, __FILE__, __FUNCTION__, __LINE__, (hint))
 // -------- Реализация тестирующего фреймворка ----------
 
 // -------- Начало модульных тестов поисковой системы ----------
