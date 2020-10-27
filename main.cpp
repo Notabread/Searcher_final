@@ -480,6 +480,12 @@ void TestRatingCompute() {
     }
     {
         SearchServer server;
+        server.AddDocument(1, "cat"s, DocumentStatus::ACTUAL, {2, -5, -3});
+        const vector<Document> docs = server.FindTopDocuments("cat in city"s);
+        ASSERT_EQUAL(docs[0].rating, -2);
+    }
+    {
+        SearchServer server;
         server.AddDocument(1, "fat cat in the house"s, DocumentStatus::ACTUAL, {});
         const vector<Document> docs = server.FindTopDocuments("cat in house"s);
         ASSERT_EQUAL(docs[0].rating, 0);
