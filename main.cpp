@@ -29,9 +29,9 @@ vector<string> SplitIntoWords(const string& text) {
     vector<string> words;
     string word;
     for (const char c : text) {
-        if (c == ' ') {
+        if (c == ' ' && word != ""s) {
             words.push_back(word);
-            word = "";
+            word = ""s;
         } else {
             word += c;
         }
@@ -48,16 +48,34 @@ enum class DocumentStatus {
 };
 
 struct Document {
+    Document() = default;
+
+    Document(int document_id, double document_relevance, int document_rating)
+    :id(document_id),
+    relevance(document_relevance),
+    rating(document_rating) {}
+
     int id;
     double relevance;
     int rating;
-    DocumentStatus status;
 };
 
 class SearchServer {
 public:
-    void SetStopWords(const string& text) {
-        for (const string& word : SplitIntoWords(text)) {
+
+    SearchServer(const string& stop_text) {
+        vector<string> stop_words = SplitIntoWords(stop_text);
+        for (const string& word : stop_words) {
+            stop_words_.insert(word);
+        }
+    }
+
+    template <typename Container>
+    SearchServer(const Container& stop_words) {
+        for(const string& word : stop_words) {
+            if (word == ""s) {
+                continue;
+            }
             stop_words_.insert(word);
         }
     }
@@ -287,8 +305,7 @@ private:
             matched_documents.push_back({
                 document_id,
                 relevance,
-                document_parameters_.at(document_id).rating,
-                document_parameters_.at(document_id).status
+                document_parameters_.at(document_id).rating
             });
         }
         return matched_documents;
@@ -379,7 +396,7 @@ void AssertImpl(bool value, const string& expr_str, const string& file, const st
 
 // -------- Начало модульных тестов поисковой системы ----------
 void TestAddingDocument() {
-    SearchServer server;
+    SearchServer server(""s);
     const auto found_docs_pre = server.FindTopDocuments("in city"s);
     ASSERT_EQUAL(found_docs_pre.size(), 0);
 
@@ -405,7 +422,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
     const string content = "cat in the city"s;
     const vector<int> ratings = {1, 2, 3};
     {
-        SearchServer server;
+        SearchServer server(""s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("in"s);
         ASSERT_EQUAL(found_docs.size(), 1);
@@ -413,15 +430,14 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
         ASSERT_EQUAL(doc0.id, doc_id);
     }
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         ASSERT_EQUAL(server.FindTopDocuments("in"s).size(), 0);
     }
 }
 
 void TestMinusWordsExcludeDocs() {
-    SearchServer server;
+    SearchServer server(""s);
     server.AddDocument(42, "cat in the city"s, DocumentStatus::ACTUAL, {1, 2, 3});
     server.AddDocument(44, "fat dog at home"s, DocumentStatus::ACTUAL, {1, 5, 3});
     server.AddDocument(45, "fat rat beat the cat"s, DocumentStatus::ACTUAL, {1, 2, -3});
@@ -432,7 +448,7 @@ void TestMinusWordsExcludeDocs() {
 }
 
 void TestMatchDocument() {
-    SearchServer server;
+    SearchServer server(""s);
     server.AddDocument(42, "cat in the city"s, DocumentStatus::REMOVED, {1, 3, 3});
     server.AddDocument(56, "fat rat in the house"s, DocumentStatus::ACTUAL, {1, 3, 3});
 
@@ -461,7 +477,7 @@ void TestMatchDocument() {
 }
 
 void TestRelevanceSort() {
-    SearchServer server;
+    SearchServer server(""s);
     server.AddDocument(1, "fat rat in the house"s, DocumentStatus::ACTUAL, {1, 5, 24});
     server.AddDocument(2, "cat in the city"s, DocumentStatus::ACTUAL, {1, 34, 3});
     server.AddDocument(3, "fat cat in the house"s, DocumentStatus::ACTUAL, {1, 2, 1});
@@ -473,19 +489,19 @@ void TestRelevanceSort() {
 
 void TestRatingCompute() {
     {
-        SearchServer server;
+        SearchServer server(""s);
         server.AddDocument(1, "cat in the city"s, DocumentStatus::ACTUAL, {1, 5, 3});
         const vector<Document> docs = server.FindTopDocuments("cat in city"s);
         ASSERT_EQUAL(docs[0].rating, 3);
     }
     {
-        SearchServer server;
+        SearchServer server(""s);
         server.AddDocument(1, "cat"s, DocumentStatus::ACTUAL, {2, -5, -3});
         const vector<Document> docs = server.FindTopDocuments("cat in city"s);
         ASSERT_EQUAL(docs[0].rating, -2);
     }
     {
-        SearchServer server;
+        SearchServer server(""s);
         server.AddDocument(1, "fat cat in the house"s, DocumentStatus::ACTUAL, {});
         const vector<Document> docs = server.FindTopDocuments("cat in house"s);
         ASSERT_EQUAL(docs[0].rating, 0);
@@ -493,7 +509,7 @@ void TestRatingCompute() {
 }
 
 void TestPredicateFiltering() {
-    SearchServer server;
+    SearchServer server(""s);
     server.AddDocument(1, "fat rat in the house"s, DocumentStatus::ACTUAL, {1, 5, 3});
     server.AddDocument(2, "cat in the city"s, DocumentStatus::BANNED, {1, 2, 3});
     server.AddDocument(3, "fat cat in the house"s, DocumentStatus::REMOVED, {});
@@ -517,7 +533,7 @@ void TestPredicateFiltering() {
 }
 
 void TestStatusFiltering() {
-    SearchServer server;
+    SearchServer server(""s);
     server.AddDocument(1, "fat rat in the house"s, DocumentStatus::ACTUAL, {1, 5, 24, 14});
     server.AddDocument(2, "cat in the city"s, DocumentStatus::BANNED, {1, -34, 3});
     server.AddDocument(3, "fat cat in the house"s, DocumentStatus::REMOVED, {0});
@@ -542,7 +558,7 @@ void TestStatusFiltering() {
 }
 
 void TestRelevanceComputing() {
-    SearchServer search_server;
+    SearchServer search_server(""s);
     search_server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       DocumentStatus::ACTUAL, {7, 2, 7});
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, {5, -12, 2, 1});
