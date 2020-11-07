@@ -129,7 +129,9 @@ public:
     vector<Document>  FindTopDocuments(const string& raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const {
         return FindTopDocuments(
                 raw_query,
-                [status](const int doc_id, const DocumentStatus doc_status, const int rating) { return doc_status == status; });
+                [status](const int doc_id, const DocumentStatus doc_status, const int rating) {
+                    return doc_status == status;
+                });
     }
 
     /*
@@ -291,7 +293,8 @@ private:
      * Сначала идёт проверка через функцию предикат, а потом проверка на минус слово.
      */
     template <typename Predicate>
-    [[nodiscard]] bool IsDocumentAllowed(const int document_id, const set<string>& minus_words, const Predicate predicate) const {
+    [[nodiscard]] bool IsDocumentAllowed(const int document_id, const set<string>& minus_words,
+            const Predicate predicate) const {
         return predicate(
                 document_id,
                 document_parameters_.at(document_id).status,
@@ -570,18 +573,21 @@ void TestPredicateFiltering() {
     server.AddDocument(2, "cat in the city"s, DocumentStatus::BANNED, {1, 2, 3});
     server.AddDocument(3, "fat cat in the house"s, DocumentStatus::REMOVED, {});
 
-    auto docs = server.FindTopDocuments("cat in city"s, [](const int id, const DocumentStatus status, const int rating) {
+    auto docs = server.FindTopDocuments("cat in city"s, [](const int id, const DocumentStatus status,
+            const int rating) {
         return status == DocumentStatus::REMOVED;
     });
     ASSERT_EQUAL(docs.size(), 1);
     ASSERT_EQUAL(docs[0].id, 3);
 
-    auto docs2 = server.FindTopDocuments("cat in city"s, [](const int id, const DocumentStatus status, const int rating) {
+    auto docs2 = server.FindTopDocuments("cat in city"s, [](const int id, const DocumentStatus status,
+            const int rating) {
         return id == 1 || id == 2;
     });
     ASSERT_EQUAL(docs2.size(), 2);
 
-    auto docs3 = server.FindTopDocuments("cat in city"s, [](const int id, const DocumentStatus status, const int rating) {
+    auto docs3 = server.FindTopDocuments("cat in city"s, [](const int id, const DocumentStatus status,
+            const int rating) {
         return rating == 3;
     });
     ASSERT_EQUAL(docs3.size(), 1);
