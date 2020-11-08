@@ -75,6 +75,8 @@ public:
             if (!IsValidWord(word)) {
                 throw invalid_argument("Stop word \""s + word + "\" has an invalid entry!"s);
             }
+        }
+        for(const string& word : stop_words) {
             stop_words_.emplace(word);
         }
     }
