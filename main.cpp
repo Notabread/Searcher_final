@@ -68,14 +68,16 @@ public:
 
     SearchServer() = default;
 
-    explicit SearchServer(const string& stop_text) {
-        vector<string> stop_words = SplitIntoWords(stop_text);
-        SetStopWords(stop_words);
-    }
+    explicit SearchServer(const string& stop_text) : SearchServer(SplitIntoWords(stop_text)) {}
 
     template <typename Container>
     explicit SearchServer(const Container& stop_words) {
-        SetStopWords(stop_words);
+        for(const string& word : stop_words) {
+            if (!IsValidWord(word)) {
+                throw invalid_argument("Stop word \""s + word + "\" has an invalid entry!"s);
+            }
+            stop_words_.emplace(word);
+        }
     }
 
     void AddDocument(int document_id, const string& document, const DocumentStatus status, const vector<int>& ratings) {
@@ -86,11 +88,13 @@ public:
             throw invalid_argument("Document with id = "s + to_string(document_id) + " already exists!"s);
         }
         const vector<string> words = SplitIntoWordsNoStop(document);
-        const double inv_word_count = words.empty() ? 0.0 : 1.0 / static_cast<int>(words.size());
         for (const string& word : words) {
             if (!IsValidWord(word)) {
                 throw invalid_argument("Word \""s + word + "\" in adding document has an invalid entry!"s);
             }
+        }
+        const double inv_word_count = words.empty() ? 0.0 : 1.0 / static_cast<int>(words.size());
+        for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
         DocsParams params = {
@@ -107,8 +111,7 @@ public:
      */
     template <typename Predicate>
     vector<Document> FindTopDocuments(const string& raw_query, const Predicate predicate) const {
-        Query query;
-        ParseQuery(query, raw_query);
+        Query query = ParseQuery(raw_query);
         vector<Document> matched_documents = FindAllDocuments(query, predicate);
         sort(matched_documents.begin(), matched_documents.end(),
              [](const Document& lhs, const Document& rhs) {
@@ -140,8 +143,7 @@ public:
      * и статусом документа.
      */
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        Query query;
-        ParseQuery(query, raw_query);
+        Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         if (document_parameters_.count(document_id) == 0) {
             return  tuple (matched_words, DocumentStatus::REMOVED);
@@ -172,8 +174,8 @@ public:
 
 private:
     struct DocsParams {
-        DocumentStatus status;
-        int rating;
+        DocumentStatus status = DocumentStatus::ACTUAL;
+        int rating = 0;
     };
     vector<int> ids_;
     map<int, DocsParams> document_parameters_;
@@ -215,8 +217,8 @@ private:
 
     struct QueryWord {
         string data;
-        bool is_minus;
-        bool is_stop;
+        bool is_minus = false;
+        bool is_stop = false;
     };
 
     /*
@@ -245,7 +247,7 @@ private:
      * Разбивает строку-запрос на плюс и минус слова, исключая стоп слова.
      * Возвращает структуру с двумя множествами этих слов.
      */
-    void ParseQuery(Query& result, const string& text) const {
+    Query ParseQuery(const string& text) const {
         Query query;
         for (const string& word : SplitIntoWords(text)) {
             const QueryWord query_word = ParseQueryWord(word);
@@ -260,7 +262,7 @@ private:
                 }
             }
         }
-        result = query;
+        return query;
     }
 
     /*
@@ -343,16 +345,6 @@ private:
         return none_of(word.begin(), word.end(), [](char c) {
             return c >= '\0' && c < ' ';
         });
-    }
-
-    template <typename Container>
-    void SetStopWords(const Container& stop_words) {
-        for(const string& word : stop_words) {
-            if (!IsValidWord(word)) {
-                throw invalid_argument("Stop word \""s + word + "\" has an invalid entry!"s);
-            }
-            stop_words_.emplace(word);
-        }
     }
 
 };
