@@ -32,7 +32,7 @@ vector<string> SplitIntoWords(const string& text) {
         if (c == ' ' && word != ""s) {
             words.push_back(word);
             word = ""s;
-        } else {
+        } else if (c != ' ') {
             word += c;
         }
     }
@@ -61,6 +61,15 @@ struct Document {
     double relevance = 0.0;
     int rating = 0;
 };
+
+ostream& operator<<(ostream& os, const Document& document) {
+    os << "{ "s;
+    os << "document_id = "  << document.id << ", "s;
+    os << "relevance = "    << document.relevance << ", "s;
+    os << "rating = "       << document.rating;
+    os << " }"s;
+    return os;
+}
 
 class SearchServer {
 public:
@@ -347,6 +356,66 @@ private:
             return c >= '\0' && c < ' ';
         });
     }
+
+};
+
+template <typename Iterator>
+class IteratorRange {
+public:
+    IteratorRange(Iterator begin, Iterator end) : begin_(begin), end_(end) {}
+    Iterator begin() const {
+        return begin_;
+    }
+    Iterator end() const {
+        return end_;
+    }
+    size_t size() const {
+        return  distance(begin_, end_);
+    }
+private:
+    Iterator begin_;
+    Iterator end_;
+};
+
+template <typename Iterator>
+ostream& operator<<(ostream& os, const IteratorRange<Iterator>& range) {
+    for (auto it = range.begin(); it != range.end(); ++it) {
+        os << *it;
+    }
+    return os;
+}
+
+template <typename Iterator>
+class Paginator {
+public:
+    Paginator(Iterator container_begin, Iterator container_end, size_t size) {
+        size_t container_size = distance(container_begin, container_end);
+        for (size_t i = 0; i < container_size; i += size) {
+            Iterator current_begin = container_begin;
+            advance(current_begin, i);
+            Iterator current_end = current_begin;
+            if (i + size < container_size) {
+                advance(current_end, size);
+            } else {
+                current_end = container_end;
+            }
+            pages_.push_back({
+                current_begin,
+                current_end
+            });
+        }
+    }
+
+    auto begin() const {
+        return pages_.begin();
+    }
+
+    auto end() const {
+        return pages_.end();
+    }
+
+private:
+    vector<IteratorRange<Iterator>> pages_;
 
 };
 
@@ -639,8 +708,33 @@ void TestSearchServer() {
 }
 // --------- Окончание модульных тестов поисковой системы -----------
 
+template <typename Container>
+auto Paginate(const Container& c, size_t page_size) {
+    return Paginator(begin(c), end(c), page_size);
+}
+
 int main() {
     TestSearchServer();
     cout << "Search server testing finished"s << endl;
+
+
+    SearchServer search_server("and with"s);
+
+    search_server.AddDocument(1, "funny pet and nasty rat"s, DocumentStatus::ACTUAL, {7, 2, 7});
+    search_server.AddDocument(2, "funny pet with curly hair"s, DocumentStatus::ACTUAL, {1, 2, 3});
+    search_server.AddDocument(3, "big cat nasty hair"s, DocumentStatus::ACTUAL, {1, 2, 8});
+    search_server.AddDocument(4, "big dog cat Vladislav"s, DocumentStatus::ACTUAL, {1, 3, 2});
+    search_server.AddDocument(5, "big dog hamster Borya"s, DocumentStatus::ACTUAL, {1, 1, 1});
+
+    const auto search_results = search_server.FindTopDocuments("curly dog"s);
+    int page_size = 2;
+    const auto pages = Paginate(search_results, page_size);
+
+    // Выводим найденные документы по страницам
+    for (auto page = pages.begin(); page != pages.end(); ++page) {
+        cout << *page << endl;
+        cout << "Page break"s << endl;
+    }
+
     return 0;
 }
