@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <map>
 #include <set>
@@ -7,6 +6,7 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <deque>
 
 using namespace std;
 
@@ -363,18 +363,23 @@ template <typename Iterator>
 class IteratorRange {
 public:
     IteratorRange(Iterator begin, Iterator end) : begin_(begin), end_(end) {}
+
     Iterator begin() const {
         return begin_;
     }
+
     Iterator end() const {
         return end_;
     }
+
     size_t size() const {
         return  distance(begin_, end_);
     }
+    
 private:
     Iterator begin_;
     Iterator end_;
+
 };
 
 template <typename Iterator>
@@ -417,6 +422,67 @@ public:
 private:
     vector<IteratorRange<Iterator>> pages_;
 
+};
+
+class RequestQueue {
+public:
+    explicit RequestQueue(const SearchServer& search_server) : server_(search_server), time_(0), empty_requests_(0) {}
+    // сделаем "обёртки" для всех методов поиска, чтобы сохранять результаты для нашей статистики
+    template <typename DocumentPredicate>
+    vector<Document> AddFindRequest(const string& raw_query, DocumentPredicate document_predicate) {
+        const vector<Document> results = server_.FindTopDocuments(raw_query, document_predicate);
+        Update(results);
+        return results;
+    }
+
+    vector<Document> AddFindRequest(const string& raw_query, DocumentStatus status) {
+        const vector<Document> results = server_.FindTopDocuments(raw_query, status);
+        Update(results);
+        return results;
+    }
+
+    vector<Document> AddFindRequest(const string& raw_query) {
+        const vector<Document> results = server_.FindTopDocuments(raw_query);
+        Update(results);
+        return results;
+    }
+
+    int GetNoResultRequests() const {
+        return empty_requests_;
+    }
+private:
+    struct QueryResult {
+        size_t time = 0;
+        bool isEmpty = false;
+    };
+    deque<QueryResult> requests_;
+    const static int sec_in_day_ = 1440;
+    const SearchServer& server_;
+    size_t time_;
+    int empty_requests_;
+    void Update(const vector<Document>& results) {
+        ++time_;
+        //Удаляем устаревшие результаты
+        while (!requests_.empty() && sec_in_day_ <= time_ - requests_.front().time) {
+            RemoveRequest();
+        }
+        //Сохраняем новый результат
+        QueryResult result = {
+                time_,
+                results.empty()
+        };
+        requests_.push_back(result);
+        if (result.isEmpty) {
+            ++empty_requests_;
+        }
+    }
+    void RemoveRequest() {
+        QueryResult result = requests_.front();
+        if (result.isEmpty) {
+            --empty_requests_;
+        }
+        requests_.pop_front();
+    }
 };
 
 // -------- Реализация тестирующего фреймворка ----------
@@ -715,26 +781,25 @@ auto Paginate(const Container& c, size_t page_size) {
 
 int main() {
     TestSearchServer();
-    cout << "Search server testing finished"s << endl;
+    SearchServer search_server("и в на"s);
+    RequestQueue request_queue(search_server);
 
+    search_server.AddDocument(1, "пушистый кот пушистый хвост"s, DocumentStatus::ACTUAL, {7, 2, 7});
+    search_server.AddDocument(2, "пушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, {1, 2, 3});
+    search_server.AddDocument(3, "большой кот модный ошейник "s, DocumentStatus::ACTUAL, {1, 2, 8});
+    search_server.AddDocument(4, "большой пёс скворец евгений"s, DocumentStatus::ACTUAL, {1, 3, 2});
+    search_server.AddDocument(5, "большой пёс скворец василий"s, DocumentStatus::ACTUAL, {1, 1, 1});
 
-    SearchServer search_server("and with"s);
-
-    search_server.AddDocument(1, "funny pet and nasty rat"s, DocumentStatus::ACTUAL, {7, 2, 7});
-    search_server.AddDocument(2, "funny pet with curly hair"s, DocumentStatus::ACTUAL, {1, 2, 3});
-    search_server.AddDocument(3, "big cat nasty hair"s, DocumentStatus::ACTUAL, {1, 2, 8});
-    search_server.AddDocument(4, "big dog cat Vladislav"s, DocumentStatus::ACTUAL, {1, 3, 2});
-    search_server.AddDocument(5, "big dog hamster Borya"s, DocumentStatus::ACTUAL, {1, 1, 1});
-
-    const auto search_results = search_server.FindTopDocuments("curly dog"s);
-    int page_size = 2;
-    const auto pages = Paginate(search_results, page_size);
-
-    // Выводим найденные документы по страницам
-    for (auto page = pages.begin(); page != pages.end(); ++page) {
-        cout << *page << endl;
-        cout << "Page break"s << endl;
+    // 1439 запросов с нулевым результатом
+    for (int i = 0; i < 1439; ++i) {
+        request_queue.AddFindRequest("пустой запрос"s);
     }
-
+    // все еще 1439 запросов с нулевым результатом
+    request_queue.AddFindRequest("пушистый пёс"s);
+    // новые сутки, первый запрос удален, 1438 запросов с нулевым результатом
+    request_queue.AddFindRequest("большой ошейник"s);
+    // первый запрос удален, 1437 запросов с нулевым результатом
+    request_queue.AddFindRequest("скворец"s);
+    cout << "Запросов, по которым ничего не нашлось "s << request_queue.GetNoResultRequests();
     return 0;
 }
