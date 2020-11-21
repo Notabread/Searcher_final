@@ -1,26 +1,10 @@
-#include <algorithm>
-#include <cmath>
-#include <map>
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
 #include <iostream>
+#include <string>
 
-#include "string_processing.h"
-#include "document.h"
-#include "search_server.h"
-#include "read_input_functions.h"
-#include "paginator.h"
 #include "request_queue.h"
 #include "unit_tests.h"
 
 using namespace std;
-
-template <typename Container>
-auto Paginate(const Container& c, size_t page_size) {
-    return Paginator(begin(c), end(c), page_size);
-}
 
 int main() {
     TestSearchServer();

@@ -58,3 +58,8 @@ public:
 private:
     std::vector<IteratorRange<Iterator>> pages_;
 };
+
+template <typename Container>
+auto Paginate(const Container& c, size_t page_size) {
+    return Paginator(std::begin(c), std::end(c), page_size);
+}
