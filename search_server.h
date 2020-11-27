@@ -66,9 +66,7 @@ public:
      * вместо функции предиката.
      */
 
-    std::vector<Document>  FindTopDocuments(const std::string& raw_query, DocumentStatus status) const;
-
-    std::vector<Document>  FindTopDocuments(const std::string& raw_query) const;
+    std::vector<Document>  FindTopDocuments(const std::string& raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const;
 
     /*
      * Функция, которая возвращает кортеж из вектора совпавших слов из raw_query в документе document_id.

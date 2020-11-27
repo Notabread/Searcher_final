@@ -1,4 +1,6 @@
 #include "unit_tests.h"
+#include "testing_framework.h"
+#include "search_server.h"
 
 using namespace std;
 

@@ -35,14 +35,6 @@ vector<Document> SearchServer::FindTopDocuments(const string& raw_query, Documen
             });
 }
 
-vector<Document> SearchServer::FindTopDocuments(const string& raw_query) const {
-    return FindTopDocuments(
-            raw_query,
-            [](const int doc_id, const DocumentStatus doc_status, const int rating) {
-                return doc_status == DocumentStatus::ACTUAL;
-            });
-}
-
 tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& raw_query, int document_id) const {
     Query query = ParseQuery(raw_query);
     vector<string> matched_words;

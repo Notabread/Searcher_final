@@ -8,12 +8,6 @@ vector<Document> RequestQueue::AddFindRequest(const string& raw_query, DocumentS
     return results;
 }
 
-vector<Document> RequestQueue::AddFindRequest(const string& raw_query) {
-    const vector<Document> results = server_.FindTopDocuments(raw_query);
-    Update(results);
-    return results;
-}
-
 int RequestQueue::GetNoResultRequests() const {
     return empty_requests_;
 }
@@ -22,7 +16,7 @@ void RequestQueue::Update(const vector<Document>& results) {
     ++time_;
     //Удаляем устаревшие результаты
     while (!requests_.empty() && sec_in_day_ <= time_ - requests_.front().time) {
-        RemoveRequest();
+        PopFrontRequest();
     }
     //Сохраняем новый результат
     QueryResult result = {
@@ -35,7 +29,7 @@ void RequestQueue::Update(const vector<Document>& results) {
     }
 }
 
-void RequestQueue::RemoveRequest() {
+void RequestQueue::PopFrontRequest() {
     QueryResult result = requests_.front();
     if (result.isEmpty) {
         --empty_requests_;

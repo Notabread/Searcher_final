@@ -3,6 +3,7 @@
 
 #include "request_queue.h"
 #include "unit_tests.h"
+#include "paginator.h"
 
 using namespace std;
 
@@ -27,6 +28,12 @@ int main() {
     request_queue.AddFindRequest("большой ошейник"s);
     // первый запрос удален, 1437 запросов с нулевым результатом
     request_queue.AddFindRequest("скворец"s);
-    cout << "Запросов, по которым ничего не нашлось "s << request_queue.GetNoResultRequests();
+    cout << "Запросов, по которым ничего не нашлось "s << request_queue.GetNoResultRequests() << endl;
+
+    auto pages = Paginate(search_server.FindTopDocuments("большой пушыстый кот евгений хвост пёс модный скворец и ошейник и хвост ещё"s), 2);
+    for (auto it = pages.begin(); it != pages.end(); ++it) {
+        cout << *it << endl << "---page break---" << endl;
+    }
+
     return 0;
 }

@@ -1,8 +1,5 @@
 #pragma once
 
-#include "testing_framework.h"
-#include "search_server.h"
-
 void TestAddingDocument();
 void TestExcludeStopWordsFromAddedDocumentContent();
 void TestMinusWordsExcludeDocs();

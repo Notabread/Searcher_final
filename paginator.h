@@ -34,10 +34,9 @@ class Paginator {
 public:
     Paginator(Iterator container_begin, Iterator container_end, size_t size) {
         size_t container_size = std::distance(container_begin, container_end);
+        Iterator current_begin = container_begin;
+        Iterator current_end = container_begin;
         for (size_t i = 0; i < container_size; i += size) {
-            Iterator current_begin = container_begin;
-            std::advance(current_begin, i);
-            Iterator current_end = current_begin;
             if (i + size < container_size) {
                 std::advance(current_end, size);
             } else {
@@ -47,6 +46,7 @@ public:
                 current_begin,
                 current_end
             });
+            current_begin = current_end;
         }
     }
     auto begin() const {

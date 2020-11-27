@@ -5,7 +5,6 @@
 #include <deque>
 #include <utility>
 
-#include "document.h"
 #include "search_server.h"
 
 class RequestQueue {
@@ -18,8 +17,7 @@ public:
         Update(results);
         return results;
     }
-    std::vector<Document> AddFindRequest(const std::string& raw_query, DocumentStatus status);
-    std::vector<Document> AddFindRequest(const std::string& raw_query);
+    std::vector<Document> AddFindRequest(const std::string& raw_query, DocumentStatus status = DocumentStatus::ACTUAL);
     int GetNoResultRequests() const;
 private:
     struct QueryResult {
@@ -32,5 +30,5 @@ private:
     size_t time_;
     int empty_requests_;
     void Update(const std::vector<Document>& results);
-    void RemoveRequest();
+    void PopFrontRequest();
 };
