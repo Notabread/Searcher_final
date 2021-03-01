@@ -77,17 +77,29 @@ public:
 
     int GetDocumentCount() const;
 
-    int GetDocumentId(int index) const;
+    std::set<int>::iterator begin();
+
+    std::set<int>::iterator end();
+
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+
+    void RemoveDocument(int document_id);
+
+    bool IsWordInDocument(const std::string& word, const int document_id) const;
+
+    std::vector<int> DocumentsWithWord(const std::string& word) const;
 
 private:
     struct DocsParams {
         DocumentStatus status = DocumentStatus::ACTUAL;
         int rating = 0;
     };
-    std::vector<int> ids_;
+    std::set<int> ids_;
     std::map<int, DocsParams> document_parameters_;
     std::set<std::string> stop_words_;
-    std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    //std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+
+    std::map<int, std::map<std::string, double>> id_to_word_freq_;
 
     [[nodiscard]] bool IsStopWord(const std::string& word) const;
 
@@ -155,13 +167,16 @@ private:
         std::map<int, double> document_to_relevance;
         //Проходим по плюс словам и заполняем словарь document_to_relevance
         for (const std::string& word : query.plus_words) {
-            if (word_to_document_freqs_.count(word) == 0 || query.minus_words.count(word) > 0) {
+            std::vector<int> documents_with_word = DocumentsWithWord(word);
+            if (documents_with_word.empty() || query.minus_words.count(word) > 0) {
                 continue;
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
-            for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
+
+            for (const int document_id : documents_with_word) {
                 if (IsDocumentAllowed(document_id, query.minus_words, predicate)) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                    document_to_relevance[document_id] += id_to_word_freq_.at(document_id)
+                            .at(word) * inverse_document_freq;
                 }
             }
         }

@@ -17,14 +17,14 @@ void SearchServer::AddDocument(int document_id, const string& document, const Do
     }
     const double inv_word_count = words.empty() ? 0.0 : 1.0 / static_cast<int>(words.size());
     for (const string& word : words) {
-        word_to_document_freqs_[word][document_id] += inv_word_count;
+        id_to_word_freq_[document_id][word] += inv_word_count;
     }
     DocsParams params = {
             status,
             ComputeAverageRating(ratings),
     };
     document_parameters_.emplace(document_id, params);
-    ids_.push_back(document_id);
+    ids_.insert(document_id);
 }
 
 vector<Document> SearchServer::FindTopDocuments(const string& raw_query, DocumentStatus status) const {
@@ -42,12 +42,12 @@ tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& 
         return  make_tuple (matched_words, DocumentStatus::REMOVED);
     }
     for (const string& word : query.minus_words) {
-        if (word_to_document_freqs_.count(word) > 0 && word_to_document_freqs_.at(word).count(document_id)) {
+        if (IsWordInDocument(word, document_id)) {
             return make_tuple (matched_words, document_parameters_.at(document_id).status);
         }
     }
     for (const string& word : query.plus_words) {
-        if (word_to_document_freqs_.count(word) > 0 && word_to_document_freqs_.at(word).count(document_id) > 0) {
+        if (IsWordInDocument(word, document_id)) {
             matched_words.push_back(word);
         }
     }
@@ -61,8 +61,38 @@ int SearchServer::GetDocumentCount() const {
     return document_parameters_.size();
 }
 
-int SearchServer::GetDocumentId(int index) const {
-    return ids_.at(index);
+std::set<int>::iterator SearchServer::begin() {
+    return ids_.begin();
+}
+
+std::set<int>::iterator SearchServer::end() {
+    return ids_.end();
+}
+
+const map<string, double>& SearchServer::GetWordFrequencies(int document_id) const {
+    static map <string, double> result;
+    return id_to_word_freq_.count(document_id) > 0 ? id_to_word_freq_.at(document_id) : result;
+}
+
+void SearchServer::RemoveDocument(int document_id) {
+    auto ids_iterator = ids_.find(document_id);
+    if (ids_iterator == ids_.end()) {
+        return;
+    }
+    ids_.erase(ids_iterator);
+
+    auto freq_iterator = id_to_word_freq_.find(document_id);
+    id_to_word_freq_.erase(freq_iterator);
+
+    auto params_iterator = document_parameters_.find(document_id);
+    document_parameters_.erase(params_iterator);
+}
+
+bool SearchServer::IsWordInDocument(const string& word, const int document_id) const {
+    if (id_to_word_freq_.count(document_id) == 0 || id_to_word_freq_.at(document_id).count(word) < 1) {
+        return false;
+    }
+    return true;
 }
 
 bool SearchServer::IsStopWord(const string& word) const {
@@ -127,18 +157,28 @@ SearchServer::Query SearchServer::ParseQuery(const string& text) const {
 }
 
 double SearchServer::ComputeWordInverseDocumentFreq(const string& word) const {
-    if (word_to_document_freqs_.count(word) && word_to_document_freqs_.at(word).size() > 0) {
-        return log(GetDocumentCount() * 1.0 / static_cast<double>(word_to_document_freqs_.at(word).size()));
+    int word_count = DocumentsWithWord(word).size();
+    if (word_count > 0) {
+        return log(GetDocumentCount() * 1.0 / static_cast<double>(word_count));
     }
     return 0.0;
+}
+
+vector<int> SearchServer::DocumentsWithWord(const string& word) const {
+    vector<int> docs;
+    for (const auto& [document_id, _] : id_to_word_freq_) {
+        if (IsWordInDocument(word, document_id)) {
+            docs.push_back(document_id);
+        }
+    }
+    return docs;
 }
 
 bool SearchServer::HasMinusWord(const int document_id, const set<string>& minus_words) const {
     //Проходимся по минус словам
     for (const string& word : minus_words) {
         //Если в словаре с этим словом находим document_id, возвращаем true
-        if (word_to_document_freqs_.count(word) > 0 &&
-            word_to_document_freqs_.at(word).count(document_id) > 0) {
+        if (IsWordInDocument(word, document_id)) {
             return true;
         }
     }
