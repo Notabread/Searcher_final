@@ -167,7 +167,7 @@ private:
         std::map<int, double> document_to_relevance;
         //Проходим по плюс словам и заполняем словарь document_to_relevance
         for (const std::string& word : query.plus_words) {
-            const std::set<int> documents_with_word = DocumentsWithWord(word);
+            const std::set<int>& documents_with_word = DocumentsWithWord(word);
             if (documents_with_word.empty() || query.minus_words.count(word) > 0) {
                 continue;
             }
