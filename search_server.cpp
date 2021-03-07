@@ -18,6 +18,7 @@ void SearchServer::AddDocument(int document_id, const string& document, const Do
     const double inv_word_count = words.empty() ? 0.0 : 1.0 / static_cast<int>(words.size());
     for (const string& word : words) {
         id_to_word_freq_[document_id][word] += inv_word_count;
+        word_to_documents_[word].insert(document_id);
     }
     DocsParams params = {
             status,
@@ -70,8 +71,8 @@ std::set<int>::iterator SearchServer::end() {
 }
 
 const map<string, double>& SearchServer::GetWordFrequencies(int document_id) const {
-    static map <string, double> result;
-    return id_to_word_freq_.count(document_id) > 0 ? id_to_word_freq_.at(document_id) : result;
+    static map <string, double> empty_map;
+    return id_to_word_freq_.count(document_id) > 0 ? id_to_word_freq_.at(document_id) : empty_map;
 }
 
 void SearchServer::RemoveDocument(int document_id) {
@@ -86,6 +87,14 @@ void SearchServer::RemoveDocument(int document_id) {
 
     auto params_iterator = document_parameters_.find(document_id);
     document_parameters_.erase(params_iterator);
+
+    for (auto& [word, docs_list] : word_to_documents_) {
+        auto docs_iterator = docs_list.find(document_id);
+        if (docs_iterator == docs_list.end()) {
+            continue;
+        }
+        docs_list.erase(docs_iterator);
+    }
 }
 
 bool SearchServer::IsWordInDocument(const string& word, const int document_id) const {
@@ -164,14 +173,9 @@ double SearchServer::ComputeWordInverseDocumentFreq(const string& word) const {
     return 0.0;
 }
 
-vector<int> SearchServer::DocumentsWithWord(const string& word) const {
-    vector<int> docs;
-    for (const auto& [document_id, _] : id_to_word_freq_) {
-        if (IsWordInDocument(word, document_id)) {
-            docs.push_back(document_id);
-        }
-    }
-    return docs;
+const set<int>& SearchServer::DocumentsWithWord(const string& word) const {
+    static set<int> empty;
+    return word_to_documents_.count(word) > 0 ? word_to_documents_.at(word) : empty;
 }
 
 bool SearchServer::HasMinusWord(const int document_id, const set<string>& minus_words) const {

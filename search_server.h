@@ -87,7 +87,7 @@ public:
 
     bool IsWordInDocument(const std::string& word, const int document_id) const;
 
-    std::vector<int> DocumentsWithWord(const std::string& word) const;
+    const std::set<int>& DocumentsWithWord(const std::string& word) const;
 
 private:
     struct DocsParams {
@@ -97,7 +97,7 @@ private:
     std::set<int> ids_;
     std::map<int, DocsParams> document_parameters_;
     std::set<std::string> stop_words_;
-    //std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    std::map<std::string, std::set<int>> word_to_documents_;
 
     std::map<int, std::map<std::string, double>> id_to_word_freq_;
 
@@ -167,7 +167,7 @@ private:
         std::map<int, double> document_to_relevance;
         //Проходим по плюс словам и заполняем словарь document_to_relevance
         for (const std::string& word : query.plus_words) {
-            std::vector<int> documents_with_word = DocumentsWithWord(word);
+            const std::set<int> documents_with_word = DocumentsWithWord(word);
             if (documents_with_word.empty() || query.minus_words.count(word) > 0) {
                 continue;
             }

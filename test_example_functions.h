@@ -5,4 +5,4 @@
 #include "vector"
 
 void AddDocument(SearchServer& searchServer, int id, const std::string& query, DocumentStatus status,
-        std::vector<int> marks);
+        const std::vector<int>& marks);

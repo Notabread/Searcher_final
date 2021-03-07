@@ -4,6 +4,6 @@
 #include<string>
 #include<map>
 
-void RemoveDuplicates(SearchServer& search_server);
+std::set<std::string> MakeWordsSet(const std::map<std::string, double>& word_to_freq);
 
-bool IsSameWords(const std::map<std::string, double>& word_to_freq_1, const std::map<std::string, double>& word_to_freq_2);
+void RemoveDuplicates(SearchServer& search_server);
