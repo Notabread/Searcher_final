@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "process_queries.h"
 
 using namespace std;
 
@@ -22,23 +23,21 @@ int main() {
         search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
     }
 
-    const string query = "curly and funny"s;
 
-    auto report = [&search_server, &query] {
-        cout << search_server.GetDocumentCount() << " documents total, "s
-             << search_server.FindTopDocuments(query).size() << " documents for query ["s << query << "]"s << endl;
-    };
+    const string query = "--curly and funny -not"s;
 
-    report();
-    // однопоточная версия
-    search_server.RemoveDocument(5);
-    report();
-    // однопоточная версия
-    search_server.RemoveDocument(execution::seq, 1);
-    report();
-    // многопоточная версия
-    search_server.RemoveDocument(execution::par, 2);
-    report();
+    {
+
+        try {
+
+            const auto [words, status] = search_server.MatchDocument(query, 1);
+            cout << words.size() << " words for document 1"s << endl;
+            // 1 words for document 1
+        } catch (std::invalid_argument e) {
+            cout << e.what() << endl;
+        }
+    }
+
 
     return 0;
 }

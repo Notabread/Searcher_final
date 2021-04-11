@@ -38,25 +38,7 @@ vector<Document> SearchServer::FindTopDocuments(const string& raw_query, Documen
 }
 
 tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& raw_query, int document_id) const {
-    Query query = ParseQuery(raw_query);
-    vector<string> matched_words;
-    if (document_parameters_.count(document_id) == 0) {
-        return  make_tuple (matched_words, DocumentStatus::REMOVED);
-    }
-    for (const string& word : query.minus_words) {
-        if (IsWordInDocument(word, document_id)) {
-            return make_tuple (matched_words, document_parameters_.at(document_id).status);
-        }
-    }
-    for (const string& word : query.plus_words) {
-        if (IsWordInDocument(word, document_id)) {
-            matched_words.push_back(word);
-        }
-    }
-    return make_tuple (
-        matched_words,
-        document_parameters_.at(document_id).status
-    );
+    return MatchDocument(std::execution::seq, raw_query, document_id);
 }
 
 int SearchServer::GetDocumentCount() const {
@@ -88,18 +70,7 @@ void SearchServer::SeqPartRemove(int document_id) {
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-    if (ids_.count(document_id) == 0) {
-        return;
-    }
-
-    for (auto& [word, docs_list] : word_to_documents_) {
-        auto docs_iterator = docs_list.find(document_id);
-        if (docs_iterator == docs_list.end()) {
-            continue;
-        }
-        docs_list.erase(docs_iterator);
-    }
-    SeqPartRemove(document_id);
+    RemoveDocument(std::execution::seq, document_id);
 }
 
 bool SearchServer::IsWordInDocument(const string& word, const int document_id) const {
@@ -153,21 +124,7 @@ SearchServer::QueryWord SearchServer::ParseQueryWord(string word) const {
 }
 
 SearchServer::Query SearchServer::ParseQuery(const string& text) const {
-    Query query;
-    for (const string& word : SplitIntoWords(text)) {
-        const QueryWord query_word = ParseQueryWord(word);
-        if (!IsValidWord(query_word.data)) {
-            throw invalid_argument("Word \""s + word + "\" in query has an invalid entry!"s);
-        }
-        if (!query_word.is_stop) {
-            if (query_word.is_minus) {
-                query.minus_words.insert(query_word.data);
-            } else {
-                query.plus_words.insert(query_word.data);
-            }
-        }
-    }
-    return query;
+    return ParseQuery(std::execution::seq, text);
 }
 
 double SearchServer::ComputeWordInverseDocumentFreq(const string& word) const {

@@ -8,6 +8,7 @@
 #include <vector>
 #include <cmath>
 #include <execution>
+#include <exception>
 
 #include "string_processing.h"
 #include "document.h"
@@ -75,6 +76,35 @@ public:
      * и статусом документа.
      */
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
+
+    template<typename ExPo>
+    std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(ExPo&& policy, const std::string& raw_query, int document_id) const {
+        Query query = ParseQuery(policy, raw_query);
+        std::vector<std::string> matched_words;
+
+        if (document_parameters_.count(document_id) == 0) {
+            return  make_tuple (matched_words, DocumentStatus::REMOVED);
+        }
+        for (const std::string& word : query.minus_words) {
+            if (IsWordInDocument(word, document_id)) {
+                return make_tuple (matched_words, document_parameters_.at(document_id).status);
+            }
+        }
+        std::for_each(
+                policy,
+                query.plus_words.begin(), query.plus_words.end(),
+                [this, document_id, &matched_words](const std::string& word){
+                    if (IsWordInDocument(word, document_id)) {
+                        matched_words.push_back(word);
+                    }
+                }
+        );
+
+        return make_tuple (
+                matched_words,
+                document_parameters_.at(document_id).status
+        );
+    }
 
     int GetDocumentCount() const;
 
@@ -161,6 +191,41 @@ private:
      * Возвращает структуру с двумя множествами этих слов.
      */
     Query ParseQuery(const std::string& text) const;
+
+    template<typename ExPo>
+    Query ParseQuery(ExPo&& policy, const std::string& text) const {
+        using namespace std::literals;
+        Query query;
+        auto words = SplitIntoWords(policy, text);
+
+        bool error = false;
+        std::for_each(
+                policy,
+                words.begin(), words.end(),
+                [&query, this, &error](const std::string& word){
+                    if (error) {
+                        return;
+                    }
+
+                    const QueryWord query_word = ParseQueryWord(word);
+                    if (!IsValidWord(query_word.data)) {
+                        error = true;
+                        return;
+                    }
+
+                    if (!query_word.is_stop) {
+                        if (query_word.is_minus) {
+                            query.minus_words.insert(std::move(query_word.data));
+                        } else {
+                            query.plus_words.insert(std::move(query_word.data));
+                        }
+                    }
+                }
+        );
+        if (error) throw std::invalid_argument(__FUNCTION__ + " invalid word error!"s);
+
+        return query;
+    }
 
     /*
      * Вычисление IDF слова.
