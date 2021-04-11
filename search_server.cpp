@@ -1,4 +1,5 @@
 #include "search_server.h"
+#include <execution>
 
 using namespace std;
 
@@ -75,18 +76,21 @@ const map<string, double>& SearchServer::GetWordFrequencies(int document_id) con
     return id_to_word_freq_.count(document_id) > 0 ? id_to_word_freq_.at(document_id) : empty_map;
 }
 
-void SearchServer::RemoveDocument(int document_id) {
+void SearchServer::SeqPartRemove(int document_id) {
     auto ids_iterator = ids_.find(document_id);
-    if (ids_iterator == ids_.end()) {
-        return;
-    }
     ids_.erase(ids_iterator);
-
-    auto freq_iterator = id_to_word_freq_.find(document_id);
-    id_to_word_freq_.erase(freq_iterator);
 
     auto params_iterator = document_parameters_.find(document_id);
     document_parameters_.erase(params_iterator);
+
+    auto freq_iterator = id_to_word_freq_.find(document_id);
+    id_to_word_freq_.erase(freq_iterator);
+}
+
+void SearchServer::RemoveDocument(int document_id) {
+    if (ids_.count(document_id) == 0) {
+        return;
+    }
 
     for (auto& [word, docs_list] : word_to_documents_) {
         auto docs_iterator = docs_list.find(document_id);
@@ -95,6 +99,7 @@ void SearchServer::RemoveDocument(int document_id) {
         }
         docs_list.erase(docs_iterator);
     }
+    SeqPartRemove(document_id);
 }
 
 bool SearchServer::IsWordInDocument(const string& word, const int document_id) const {

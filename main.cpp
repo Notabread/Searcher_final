@@ -1,4 +1,3 @@
-#include "process_queries.h"
 #include "search_server.h"
 
 #include <iostream>
@@ -23,17 +22,23 @@ int main() {
         search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
     }
 
-    const vector<string> queries = {
-            "nasty rat -not"s,
-            "not very funny nasty pet"s,
-            "curly hair"s
+    const string query = "curly and funny"s;
+
+    auto report = [&search_server, &query] {
+        cout << search_server.GetDocumentCount() << " documents total, "s
+             << search_server.FindTopDocuments(query).size() << " documents for query ["s << query << "]"s << endl;
     };
-    id = 0;
-    for (
-        const auto& documents : ProcessQueries(search_server, queries)
-            ) {
-        cout << documents.size() << " documents for query ["s << queries[id++] << "]"s << endl;
-    }
+
+    report();
+    // однопоточная версия
+    search_server.RemoveDocument(5);
+    report();
+    // однопоточная версия
+    search_server.RemoveDocument(execution::seq, 1);
+    report();
+    // многопоточная версия
+    search_server.RemoveDocument(execution::par, 2);
+    report();
 
     return 0;
 }

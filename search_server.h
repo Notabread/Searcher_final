@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <vector>
 #include <cmath>
+#include <execution>
 
 #include "string_processing.h"
 #include "document.h"
@@ -83,7 +84,33 @@ public:
 
     const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
 
+    //Общая часть удаления документа, которую нельзя сделать параллельно
+    void SeqPartRemove(int document_id);
+
     void RemoveDocument(int document_id);
+
+    template<typename ExPo>
+    void RemoveDocument(ExPo&& policy, const int document_id) {
+        if (ids_.count(document_id) == 0) {
+            return;
+        }
+
+        auto& words = id_to_word_freq_[document_id];
+
+        std::for_each(
+                policy,
+                words.begin(), words.end(),
+                [this, document_id](const std::pair<std::string, double>& word_to_freq){
+
+                    std::set<int>& docs_list = word_to_documents_[word_to_freq.first];
+                    auto docs_iterator = docs_list.find(document_id);
+                    docs_list.erase(docs_iterator);
+
+                }
+        );
+
+        SeqPartRemove(document_id);
+    }
 
     bool IsWordInDocument(const std::string& word, const int document_id) const;
 
