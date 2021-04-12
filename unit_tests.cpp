@@ -76,9 +76,9 @@ void TestMatchDocument() {
     server.AddDocument(56, "fat rat in the house"s, DocumentStatus::ACTUAL, {1, 3, 3});
 
     auto match = server.MatchDocument("cat in home"s, 42);
-    vector<string>& result_words = get<0>(match);
+    vector<string_view>& result_words = get<0>(match);
     sort(result_words.begin(), result_words.end());
-    vector<string> words = {"cat"s, "in"s};
+    vector<string_view> words = {"cat"sv, "in"sv};
     ASSERT_EQUAL(result_words, words);
     ASSERT(get<1>(match) == DocumentStatus::REMOVED);
 
@@ -181,12 +181,16 @@ void TestStatusFiltering() {
     ASSERT_EQUAL(docs4.size(), 1);
     ASSERT_EQUAL(docs4[0].id, 2);
 
+    auto docs5 = server.FindTopDocuments("in the house"s);
+    ASSERT_EQUAL(docs5.size(), 1);
+    ASSERT_EQUAL(docs5[0].id, 1);
+
 }
 
 void TestRelevanceComputing() {
     SearchServer search_server;
-    search_server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       DocumentStatus::ACTUAL, {7, 2, 7});
+    search_server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, {5, -12, 2, 1});
     search_server.AddDocument(3, "ухоженный скворец евгений"s,         DocumentStatus::BANNED, {9});
 

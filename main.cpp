@@ -1,9 +1,10 @@
+#include "process_queries.h"
 #include "search_server.h"
+#include "unit_tests.h"
 
 #include <iostream>
 #include <string>
 #include <vector>
-#include "process_queries.h"
 
 using namespace std;
 
@@ -23,21 +24,17 @@ int main() {
         search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
     }
 
-
-    const string query = "--curly and funny -not"s;
-
-    {
-
-        try {
-
-            const auto [words, status] = search_server.MatchDocument(query, 1);
-            cout << words.size() << " words for document 1"s << endl;
-            // 1 words for document 1
-        } catch (std::invalid_argument e) {
-            cout << e.what() << endl;
-        }
+    const vector<string> queries = {
+            "nasty rat -not"s,
+            "not very funny nasty pet"s,
+            "curly hair"s
+    };
+    id = 0;
+    for (
+        const auto& documents : ProcessQueries(search_server, queries)
+            ) {
+        cout << documents.size() << " documents for query ["s << queries[id++] << "]"s << endl;
     }
-
 
     return 0;
 }
