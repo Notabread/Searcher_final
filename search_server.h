@@ -10,6 +10,7 @@
 #include <execution>
 #include <exception>
 #include <string_view>
+#include <mutex>
 
 #include "string_processing.h"
 #include "document.h"
@@ -80,26 +81,35 @@ public:
 
     template<typename ExPo>
     std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(ExPo&& policy, const std::string_view raw_query, int document_id) const {
+        using namespace std::string_literals;
         Query query = ParseQuery(policy, raw_query);
         std::vector<std::string_view> matched_words;
 
         if (document_parameters_.count(document_id) == 0) {
             return  make_tuple (matched_words, DocumentStatus::REMOVED);
         }
-        for (const std::string_view word : query.minus_words) {
-            if (IsWordInDocument(word, document_id)) {
-                return make_tuple (matched_words, document_parameters_.at(document_id).status);
-            }
+
+        if (std::any_of(policy, query.minus_words.begin(), query.minus_words.end(), [this, document_id](const auto& word) {
+            return IsWordInDocument(word, document_id);
+        })) {
+            return make_tuple (matched_words, document_parameters_.at(document_id).status);
         }
-        std::for_each(
-                policy,
-                query.plus_words.begin(), query.plus_words.end(),
-                [this, document_id, &matched_words](const std::string_view word){
-                    if (IsWordInDocument(word, document_id)) {
-                        matched_words.push_back(GetSourceView(word));
-                    }
-                }
-        );
+
+        std::mutex lock;
+        std::for_each(policy, query.plus_words.begin(), query.plus_words.end(),
+                      [this, document_id, &matched_words, &lock](const std::string_view word) {
+
+            if (!IsWordInDocument(word, document_id)) {
+                return;
+            }
+            std::string_view* dest;
+            {
+                std::lock_guard guard(lock);
+                dest = &matched_words.emplace_back(""s);
+            }
+            *dest = std::string(word);
+
+        });
         return make_tuple(
                 matched_words,
                 document_parameters_.at(document_id).status
@@ -114,9 +124,6 @@ public:
 
     const std::map<std::string_view, double>& GetWordFrequencies(int document_id) const;
 
-    //Общая часть удаления документа, которую нельзя сделать параллельной
-    void SeqPartRemove(int document_id);
-
     void RemoveDocument(int document_id);
 
     template<typename ExPo>
@@ -125,23 +132,31 @@ public:
             return;
         }
 
+        std::mutex lock;
         auto& words = id_to_word_freq_[document_id];
-        std::for_each(
-                policy,
-                words.begin(), words.end(),
-                [this, document_id](const std::pair<std::string_view, double>& word_to_freq) {
-                    std::string_view word = word_to_freq.first;
-                    auto word_to_docs_it = word_to_documents_.find(word);
+        std::for_each(policy, words.begin(), words.end(),
+                      [this, document_id, &lock](const std::pair<std::string_view, double>& word_to_freq) {
 
-                    std::set<int>& docs_list = word_to_docs_it->second;
-                    docs_list.erase(docs_list.find(document_id));
-                    if (docs_list.empty()) {
-                        word_to_documents_.erase(word_to_docs_it);
-                    }
-                }
-        );
+            std::string_view word = word_to_freq.first;
+            auto word_to_docs_it = word_to_documents_.find(word);
+            std::set<int>& docs_list = word_to_docs_it->second;
+            auto doc_it = docs_list.find(document_id);
 
-        SeqPartRemove(document_id);
+            std::lock_guard guard(lock);
+            docs_list.erase(doc_it);
+            if (docs_list.empty()) {
+                word_to_documents_.erase(word_to_docs_it);
+            }
+        });
+
+        auto ids_iterator = ids_.find(document_id);
+        ids_.erase(ids_iterator);
+
+        auto params_iterator = document_parameters_.find(document_id);
+        document_parameters_.erase(params_iterator);
+
+        auto freq_iterator = id_to_word_freq_.find(document_id);
+        id_to_word_freq_.erase(freq_iterator);
     }
 
     bool IsWordInDocument(const std::string_view word, const int document_id) const;
@@ -198,33 +213,44 @@ private:
     Query ParseQuery(ExPo&& policy, const std::string_view text) const {
         using namespace std::literals;
         Query query;
-        std::vector<std::string_view> words = SplitIntoWords(policy, text);
+        std::vector<std::string_view> words = SplitIntoWords(text);
 
-        bool error = false;
-        std::for_each(
-                policy,
-                words.begin(), words.end(),
-                [&query, this, &error](const std::string_view word){
-                    if (error) {
-                        return;
-                    }
+        std::vector<QueryWord> query_words;
+        query_words.reserve(words.size());
 
-                    const QueryWord query_word = ParseQueryWord(word);
-                    if (!IsValidWord(query_word.data)) {
-                        error = true;
-                        return;
-                    }
+        //Сначала парсим слова и записываем в новый вектор
+        std::mutex lock;
+        std::for_each(policy, words.begin(), words.end(), [this, &query_words, &lock](const std::string_view word) {
+            QueryWord* dest;
+            {
+                std::lock_guard guard(lock);
+                dest = &query_words.emplace_back(QueryWord());
+            }
+            *dest = ParseQueryWord(word);
+        });
 
-                    if (!query_word.is_stop) {
-                        if (query_word.is_minus) {
-                            query.minus_words.insert(query_word.data);
-                        } else {
-                            query.plus_words.insert(query_word.data);
-                        }
-                    }
-                }
-        );
-        if (error) throw std::invalid_argument(__FUNCTION__ + " invalid word error!"s);
+        //Проверяем уже распарсенные слова
+        if (policy, std::any_of(query_words.begin(), query_words.end(), [this](const QueryWord& query_word) {
+            return !IsValidWord(query_word.data);
+        })) {
+            throw std::invalid_argument(__FUNCTION__ + " invalid word error!"s);
+        }
+
+        //Если всё хорошо, заполняем query
+        std::pair<std::mutex, std::mutex> locks;
+        std::for_each(policy, query_words.begin(), query_words.end(), [this, &query, &locks](const QueryWord& query_word) {
+            if (query_word.is_stop) {
+                return;
+            }
+
+            if (query_word.is_minus) {
+                std::lock_guard guard(locks.first);
+                query.minus_words.insert(query_word.data);
+                return;
+            }
+            std::lock_guard guard(locks.second);
+            query.plus_words.insert(query_word.data);
+        });
 
         return query;
     }

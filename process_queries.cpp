@@ -31,14 +31,11 @@ std::vector<Document> ProcessQueriesJoined(const SearchServer& search_server,
     std::vector<Document> result;
     result.reserve(realSize);
 
-    for (auto& item : processed) {
-        for (Document& doc : item) {
-
+    for (const auto& item : processed) {
+        for (const Document& doc : item) {
             result.push_back( doc );
-
         }
     }
 
     return result;
-
 }

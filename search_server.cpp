@@ -19,7 +19,7 @@ void SearchServer::AddDocument(int document_id, const string_view document, cons
 
     //Добавляем оригиналы слов в word_to_documents_
     for (std::string_view word : words) {
-        word_to_documents_[ToString(word)].insert(document_id);
+        word_to_documents_[std::string(word)].insert(document_id);
     }
 
     //А тут уже используем string_view
@@ -62,17 +62,6 @@ std::set<int>::iterator SearchServer::end() {
 const map<std::string_view, double>& SearchServer::GetWordFrequencies(int document_id) const {
     static map <std::string_view, double> empty_map;
     return id_to_word_freq_.count(document_id) > 0 ? id_to_word_freq_.at(document_id) : empty_map;
-}
-
-void SearchServer::SeqPartRemove(int document_id) {
-    auto ids_iterator = ids_.find(document_id);
-    ids_.erase(ids_iterator);
-
-    auto params_iterator = document_parameters_.find(document_id);
-    document_parameters_.erase(params_iterator);
-
-    auto freq_iterator = id_to_word_freq_.find(document_id);
-    id_to_word_freq_.erase(freq_iterator);
 }
 
 void SearchServer::RemoveDocument(int document_id) {
