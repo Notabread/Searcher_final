@@ -9,6 +9,7 @@
 using namespace std;
 
 int main() {
+    TestSearchServer();
     SearchServer search_server("and with"s);
 
     int id = 0;

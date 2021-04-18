@@ -11,9 +11,11 @@
 #include <exception>
 #include <string_view>
 #include <mutex>
+#include <type_traits>
 
 #include "string_processing.h"
 #include "document.h"
+#include "concurrent_map.h"
 
 enum class DocumentStatus {
     ACTUAL,
@@ -51,25 +53,34 @@ public:
      * Основная функция поиска самых подходящих документов по запросу.
      * Для уточнения поиска используется функция предикат.
      */
-    template <typename Predicate>
-    std::vector<Document> FindTopDocuments(const std::string_view raw_query, const Predicate predicate) const {
+    template <typename ExPo, typename Predicate>
+    std::vector<Document> FindTopDocuments(ExPo&& policy, const std::string_view raw_query, const Predicate predicate) const {
         Query query = ParseQuery(raw_query);
-        std::vector<Document> matched_documents = FindAllDocuments(query, predicate);
-        std::sort(matched_documents.begin(), matched_documents.end(),
-             [](const Document& lhs, const Document& rhs) {
-                 return (!IsDoubleEqual(lhs.relevance, rhs.relevance) && lhs.relevance > rhs.relevance)
-                        || (lhs.rating > rhs.rating && IsDoubleEqual(lhs.relevance, rhs.relevance));
-             });
+        std::vector<Document> matched_documents = FindAllDocuments(policy, query, predicate);
+        std::sort(policy, matched_documents.begin(), matched_documents.end(),
+                  [](const Document& lhs, const Document& rhs) {
+            return (!IsDoubleEqual(lhs.relevance, rhs.relevance) && lhs.relevance > rhs.relevance)
+                   || (lhs.rating > rhs.rating && IsDoubleEqual(lhs.relevance, rhs.relevance));
+        });
         if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
             matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
         }
         return matched_documents;
     }
 
-    /*
-     * Перегрузка функции поиска с использованием статуса в качестве второго парметра
-     * вместо функции предиката.
-     */
+    template <typename ExPo>
+    std::vector<Document> FindTopDocuments(ExPo&& policy, const std::string_view raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const {
+        return FindTopDocuments(policy, raw_query,
+                                [status](const int doc_id, const DocumentStatus doc_status, const int rating) {
+            return doc_status == status;
+        });
+    }
+
+    template <typename Predicate>
+    std::vector<Document>  FindTopDocuments(const std::string_view raw_query, const Predicate predicate) const {
+        return FindTopDocuments(std::execution::seq, raw_query, predicate);
+    }
+
     std::vector<Document>  FindTopDocuments(const std::string_view raw_query, DocumentStatus status = DocumentStatus::ACTUAL) const;
 
     /*
@@ -107,7 +118,7 @@ public:
                 std::lock_guard guard(lock);
                 dest = &matched_words.emplace_back(""s);
             }
-            *dest = std::string(word);
+            *dest = word;
 
         });
         return make_tuple(
@@ -230,7 +241,7 @@ private:
         });
 
         //Проверяем уже распарсенные слова
-        if (policy, std::any_of(query_words.begin(), query_words.end(), [this](const QueryWord& query_word) {
+        if (std::any_of(policy, query_words.begin(), query_words.end(), [this](const QueryWord& query_word) {
             return !IsValidWord(query_word.data);
         })) {
             throw std::invalid_argument(__FUNCTION__ + " invalid word error!"s);
@@ -282,33 +293,45 @@ private:
     /*
      * Поиск всех документов, удовлетворяющих запросу.
      */
-    template <typename Predicate>
-    std::vector<Document> FindAllDocuments(const Query& query, const Predicate predicate) const {
-        std::map<int, double> document_to_relevance;
+    template <typename ExPo, typename Predicate>
+    std::vector<Document> FindAllDocuments(ExPo&& policy, const Query& query, const Predicate predicate) const {
+        size_t buckets = std::is_same<ExPo, const std::execution::parallel_policy&>::value ? 8 : 1;
+        ConcurrentMap<int, double> document_to_relevance(buckets);
+
         //Проходим по плюс словам и заполняем словарь document_to_relevance
-        for (const std::string_view word : query.plus_words) {
+        std::for_each(policy, query.plus_words.begin(), query.plus_words.end(),
+                      [this, &document_to_relevance, &query, &predicate](const std::string_view word){
             const std::set<int>& documents_with_word = DocumentsWithWord(word);
             if (documents_with_word.empty() || query.minus_words.count(word) > 0) {
-                continue;
+                return;
             }
-            const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
 
+            const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
             for (const int document_id : documents_with_word) {
                 if (IsDocumentAllowed(document_id, query.minus_words, predicate)) {
-                    document_to_relevance[document_id] += id_to_word_freq_.at(document_id)
+                    document_to_relevance[document_id].ref_to_value += id_to_word_freq_.at(document_id)
                             .at(word) * inverse_document_freq;
                 }
             }
-        }
+        });
+
         //Объявляем и заполняем вектор документов
         std::vector<Document> matched_documents;
-        for (const auto [document_id, relevance] : document_to_relevance) {
-            matched_documents.push_back({
-                document_id,
-                relevance,
-                document_parameters_.at(document_id).rating
-            });
-        }
+        std::map<int, double> document_to_relevance_ordinary = document_to_relevance.BuildOrdinaryMap();
+        std::mutex lock;
+        std::for_each(policy, document_to_relevance_ordinary.begin(), document_to_relevance_ordinary.end(),
+                      [this, &matched_documents, &lock](const std::pair<int, double>& doc_freq){
+            Document* dest;
+            {
+                std::lock_guard guard(lock);
+                dest = &matched_documents.emplace_back(Document());
+            }
+            *dest = {
+                    doc_freq.first,
+                    doc_freq.second,
+                    document_parameters_.at(doc_freq.first).rating
+            };
+        });
         return matched_documents;
     }
 

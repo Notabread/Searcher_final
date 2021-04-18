@@ -36,11 +36,10 @@ void SearchServer::AddDocument(int document_id, const string_view document, cons
 }
 
 vector<Document> SearchServer::FindTopDocuments(const string_view raw_query, DocumentStatus status) const {
-    return FindTopDocuments(
-            raw_query,
-            [status](const int doc_id, const DocumentStatus doc_status, const int rating) {
-                return doc_status == status;
-            });
+    return FindTopDocuments(execution::seq,raw_query,
+                            [status](const int doc_id, const DocumentStatus doc_status, const int rating) {
+        return doc_status == status;
+    });
 }
 
 tuple<vector<string_view>, DocumentStatus> SearchServer::MatchDocument(const string_view raw_query, int document_id) const {
