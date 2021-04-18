@@ -118,7 +118,7 @@ public:
                 std::lock_guard guard(lock);
                 dest = &matched_words.emplace_back(""s);
             }
-            *dest = word;
+            *dest = GetSourceView(word);
 
         });
         return make_tuple(
