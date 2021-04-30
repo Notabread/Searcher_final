@@ -16,7 +16,7 @@ public:
 
     struct Access {
     private:
-        std::lock_guard<std::mutex&> guard_;
+        std::lock_guard<std::mutex> guard_;
     public:
         Access(Bucket& bucket, uint64_t key) : guard_(bucket.guard), ref_to_value(bucket.data[key]) {};
         Value& ref_to_value;

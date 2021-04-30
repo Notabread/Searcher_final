@@ -113,12 +113,8 @@ public:
             if (!IsWordInDocument(word, document_id)) {
                 return;
             }
-            std::string_view* dest;
-            {
-                std::lock_guard guard(lock);
-                dest = &matched_words.emplace_back(""s);
-            }
-            *dest = GetSourceView(word);
+            std::lock_guard guard(lock);
+            matched_words.push_back(word);
 
         });
         return make_tuple(
@@ -143,31 +139,29 @@ public:
             return;
         }
 
-        std::mutex lock;
         auto& words = id_to_word_freq_[document_id];
         std::for_each(policy, words.begin(), words.end(),
-                      [this, document_id, &lock](const std::pair<std::string_view, double>& word_to_freq) {
+                      [this, document_id](const std::pair<std::string_view, double>& word_to_freq) {
 
             std::string_view word = word_to_freq.first;
+
+            //Тут мы ищем итератор, что позволит нам не искать это место повторно ниже, если docs_list будет пустым
             auto word_to_docs_it = word_to_documents_.find(word);
             std::set<int>& docs_list = word_to_docs_it->second;
-            auto doc_it = docs_list.find(document_id);
 
-            std::lock_guard guard(lock);
-            docs_list.erase(doc_it);
-            if (docs_list.empty()) {
+            if (docs_list.size() > 1) {
+                //Если на слово находится больше одного документа, удаляем только документ из списка
+                docs_list.erase(document_id);
+            } else {
+                //Если документ только один, удаляем всю пару, чтобы удалить неиспользуемую исходную строку
                 word_to_documents_.erase(word_to_docs_it);
             }
+
         });
 
-        auto ids_iterator = ids_.find(document_id);
-        ids_.erase(ids_iterator);
-
-        auto params_iterator = document_parameters_.find(document_id);
-        document_parameters_.erase(params_iterator);
-
-        auto freq_iterator = id_to_word_freq_.find(document_id);
-        id_to_word_freq_.erase(freq_iterator);
+        ids_.erase(document_id);
+        document_parameters_.erase(document_id);
+        id_to_word_freq_.erase(document_id);
     }
 
     bool IsWordInDocument(const std::string_view word, const int document_id) const;
