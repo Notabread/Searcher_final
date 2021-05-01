@@ -192,7 +192,7 @@ private:
     static int ComputeAverageRating(const std::vector<int>& ratings);
 
     struct QueryWord {
-        std::string_view data;
+        std::string_view word;
         bool is_minus = false;
         bool is_stop = false;
     };
@@ -220,41 +220,32 @@ private:
         Query query;
         std::vector<std::string_view> words = SplitIntoWords(text);
 
-        std::vector<QueryWord> query_words;
-        query_words.reserve(words.size());
+        std::vector<QueryWord> query_words(words.size());
 
         //Сначала парсим слова и записываем в новый вектор
-        std::mutex lock;
-        std::for_each(policy, words.begin(), words.end(), [this, &query_words, &lock](const std::string_view word) {
-            QueryWord* dest;
-            {
-                std::lock_guard guard(lock);
-                dest = &query_words.emplace_back(QueryWord());
-            }
-            *dest = ParseQueryWord(word);
+        std::transform(policy, words.begin(), words.end(), query_words.begin(),
+                       [this, &query_words](const std::string_view word) {
+            return ParseQueryWord(word);
         });
 
         //Проверяем уже распарсенные слова
         if (std::any_of(policy, query_words.begin(), query_words.end(), [this](const QueryWord& query_word) {
-            return !IsValidWord(query_word.data);
+            return !IsValidWord(query_word.word);
         })) {
             throw std::invalid_argument(__FUNCTION__ + " invalid word error!"s);
         }
 
         //Если всё хорошо, заполняем query
-        std::pair<std::mutex, std::mutex> locks;
-        std::for_each(policy, query_words.begin(), query_words.end(), [this, &query, &locks](const QueryWord& query_word) {
+        std::for_each(query_words.begin(), query_words.end(), [this, &query](const QueryWord& query_word) {
             if (query_word.is_stop) {
                 return;
             }
 
             if (query_word.is_minus) {
-                std::lock_guard guard(locks.first);
-                query.minus_words.insert(query_word.data);
+                query.minus_words.insert(query_word.word);
                 return;
             }
-            std::lock_guard guard(locks.second);
-            query.plus_words.insert(query_word.data);
+            query.plus_words.insert(query_word.word);
         });
 
         return query;
@@ -310,20 +301,14 @@ private:
         });
 
         //Объявляем и заполняем вектор документов
-        std::vector<Document> matched_documents;
         std::map<int, double> document_to_relevance_ordinary = document_to_relevance.BuildOrdinaryMap();
-        std::mutex lock;
-        std::for_each(policy, document_to_relevance_ordinary.begin(), document_to_relevance_ordinary.end(),
-                      [this, &matched_documents, &lock](const std::pair<int, double>& doc_freq){
-            Document* dest;
-            {
-                std::lock_guard guard(lock);
-                dest = &matched_documents.emplace_back(Document());
-            }
-            *dest = {
-                    doc_freq.first,
-                    doc_freq.second,
-                    document_parameters_.at(doc_freq.first).rating
+        std::vector<Document> matched_documents(document_to_relevance_ordinary.size());
+        std::transform(policy, document_to_relevance_ordinary.begin(), document_to_relevance_ordinary.end(),
+                      matched_documents.begin(), [this](const std::pair<int, double>& doc_freq){
+            return Document{
+                doc_freq.first,
+                doc_freq.second,
+                document_parameters_.at(doc_freq.first).rating
             };
         });
         return matched_documents;
