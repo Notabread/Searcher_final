@@ -243,9 +243,9 @@ private:
 
             if (query_word.is_minus) {
                 query.minus_words.insert(query_word.word);
-                return;
+            } else {
+                query.plus_words.insert(query_word.word);
             }
-            query.plus_words.insert(query_word.word);
         });
 
         return query;
