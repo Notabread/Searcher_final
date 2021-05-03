@@ -142,21 +142,8 @@ public:
         auto& words = id_to_word_freq_[document_id];
         std::for_each(policy, words.begin(), words.end(),
                       [this, document_id](const std::pair<std::string_view, double>& word_to_freq) {
-
             std::string_view word = word_to_freq.first;
-
-            //Тут мы ищем итератор, что позволит нам не искать это место повторно ниже, если docs_list будет пустым
-            auto word_to_docs_it = word_to_documents_.find(word);
-            std::set<int>& docs_list = word_to_docs_it->second;
-
-            if (docs_list.size() > 1) {
-                //Если на слово находится больше одного документа, удаляем только документ из списка
-                docs_list.erase(document_id);
-            } else {
-                //Если документ только один, удаляем всю пару, чтобы удалить неиспользуемую исходную строку
-                word_to_documents_.erase(word_to_docs_it);
-            }
-
+            word_to_documents_.find(word)->second.erase(document_id);
         });
 
         ids_.erase(document_id);
