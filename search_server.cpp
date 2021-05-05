@@ -17,16 +17,14 @@ void SearchServer::AddDocument(int document_id, const string_view document, cons
         }
     }
 
+    const double inv_word_count = words.empty() ? 0.0 : 1.0 / static_cast<int>(words.size());
     //Добавляем оригиналы слов в word_to_documents_
     for (std::string_view word : words) {
-        word_to_documents_[std::string(word)].insert(document_id);
+        auto [it, suc] = word_to_documents_.insert({std::string(word), {}});
+        it->second.insert(document_id);
+        id_to_word_freq_[document_id][it->first] += inv_word_count;
     }
 
-    //А тут уже используем string_view
-    const double inv_word_count = words.empty() ? 0.0 : 1.0 / static_cast<int>(words.size());
-    for (const string_view word : words) {
-        id_to_word_freq_[document_id][GetSourceView(word)] += inv_word_count;
-    }
     DocsParams params = {
             status,
             ComputeAverageRating(ratings),
