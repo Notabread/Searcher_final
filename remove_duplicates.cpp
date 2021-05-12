@@ -2,8 +2,8 @@
 
 using namespace std;
 
-set<string> MakeWordsSet(const map<string, double>& word_to_freq) {
-    set<string> words;
+set<string_view> MakeWordsSet(const map<string_view, double>& word_to_freq) {
+    set<string_view> words;
     for (const auto& [word, _] : word_to_freq) {
         words.insert(word);
     }
@@ -14,14 +14,14 @@ void RemoveDuplicates(SearchServer& search_server) {
     auto begin = search_server.begin();
     auto end = search_server.end();
     set<int> documents_to_remove;
-    set<set<string>> existing_sets;
+    set<set<string_view>> existing_sets;
     for (auto it = begin; it != end; ++it) {
         int document_id = *it;
         if (documents_to_remove.count(document_id) > 0) {
             continue;
         }
-        const map<string, double>& word_to_freq = search_server.GetWordFrequencies(document_id);
-        set<string> words = MakeWordsSet(word_to_freq);
+        const map<string_view, double>& word_to_freq = search_server.GetWordFrequencies(document_id);
+        set<string_view> words = MakeWordsSet(word_to_freq);
         if (existing_sets.count(words) > 0) {
             documents_to_remove.insert(document_id);
             continue;
